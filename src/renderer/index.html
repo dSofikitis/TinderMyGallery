@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' tmg: data: blob:; media-src 'self' tmg: data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self';" />
+  <title>TinderMyGallery</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Start -->
+  <div id="startScreen" class="overlay">
+    <div class="panel">
+      <h1>Tinder<span>My</span>Gallery</h1>
+      <p>Swipe through every photo, video and audio file in a folder (and all its subfolders).
+         Keep the good ones into a date &amp; type sorted gallery — bin the rest.</p>
+      <button id="startBtn" class="primary">Select folders &amp; start</button>
+      <p class="fine">You'll pick the folder to sort, then where to create <b>MyGallery</b>.</p>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading" class="overlay hidden">
+    <div class="panel">
+      <div class="spinner"></div>
+      <p>Scanning folder…</p>
+      <p id="scanCount" class="fine">0 media files found</p>
+    </div>
+  </div>
+
+  <!-- Pre-scan summary -->
+  <div id="summaryScreen" class="overlay hidden">
+    <div class="panel">
+      <h1>Ready to sort</h1>
+      <div id="summaryBreakdown" class="breakdown"></div>
+      <p id="summaryResume" class="fine"></p>
+      <div class="row">
+        <button id="summaryCancelBtn" class="ghost">Cancel</button>
+        <button id="summaryStartBtn" class="primary">Start swiping</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div id="app" class="hidden">
+    <aside id="sidebar">
+      <h2>Recently kept</h2>
+      <div id="grid"></div>
+      <p class="fine">Last 12 keeps — a quick check against keeping a duplicate twice.</p>
+    </aside>
+
+    <main id="stage">
+      <header id="topbar">
+        <div id="counter"></div>
+        <button id="finishBtn" class="ghost">Finish ▸</button>
+      </header>
+
+      <div id="cardArea"></div>
+      <div id="filename"></div>
+
+      <div id="controls">
+        <button id="noBtn" class="circle no" title="Discard (←)">✕</button>
+        <button id="undoBtn" class="circle undo" title="Undo (Ctrl/Cmd+Z)">↺</button>
+        <button id="yesBtn" class="circle yes" title="Keep (→)">✓</button>
+      </div>
+      <div id="hintbar">drag or ← to bin &nbsp;·&nbsp; keep → or drag &nbsp;·&nbsp; Ctrl/Cmd+Z to undo</div>
+    </main>
+  </div>
+
+  <!-- Paused: too many failures in a row -->
+  <div id="blockedScreen" class="overlay hidden">
+    <div class="panel">
+      <h1>Paused</h1>
+      <p id="blockedMsg" class="preline"></p>
+      <div class="row">
+        <button id="blockedFinishBtn" class="ghost">Finish &amp; stop</button>
+        <button id="blockedResumeBtn" class="primary">Skip these &amp; continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transient notice -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- Done -->
+  <div id="doneScreen" class="overlay hidden">
+    <div class="panel">
+      <h1>Session</h1>
+      <p id="doneSummary"></p>
+      <button id="doneFinishBtn" class="primary">Finish &amp; empty to Recycle Bin</button>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

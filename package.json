@@ -1,0 +1,20 @@
+{
+  "name": "tinder-my-gallery",
+  "version": "1.0.0",
+  "description": "Swipe through photos, videos and audio. Keep the good ones into a date/type-sorted gallery, bin the rest.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node test/fileops.test.js"
+  },
+  "author": "Dimitrios Sofikitis / dSofikitis",
+  "license": "MIT",
+  "dependencies": {
+    "exifr": "^7.1.3",
+    "ffprobe-static": "^3.1.0",
+    "trash": "^10.1.1"
+  },
+  "devDependencies": {
+    "electron": "^42.3.0"
+  }
+}
