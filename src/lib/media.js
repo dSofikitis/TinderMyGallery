@@ -1,7 +1,5 @@
 'use strict';
 
-// Pure, Electron-free media/file logic. Shared by main.js and the tests.
-
 const path = require('path');
 const os = require('os');
 const fsp = require('fs/promises');
@@ -12,12 +10,9 @@ const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif']);
 const VIDEO_EXT = new Set(['.mov', '.mp4', '.avi']);
 const AUDIO_EXT = new Set(['.mp3', '.wav']);
 
-// Folder names we create under the chosen destination.
 const GALLERY_NAME = 'MyGallery';
 const STAGING_NAME = '.TMG-staging';
-// Small JSON kept inside the gallery to remember cumulative progress across sessions.
 const PROGRESS_FILE = '.tmg-progress.json';
-// Folders we create ourselves — never scan them back in.
 const SKIP_DIRS = new Set([GALLERY_NAME, STAGING_NAME]);
 
 function typeOf(name) {
@@ -32,10 +27,6 @@ async function exists(p) {
   try { await fsp.access(p); return true; } catch { return false; }
 }
 
-// Resolve symlinks / `..` / case-folding to a real on-disk path. If the path does
-// not exist yet, fall back to a lexically-resolved absolute path. Crucially, when
-// the path IS an existing symlink this returns the link's TARGET, so containment
-// checks can't be fooled by a symlink that points back into the source tree.
 async function realpathSafe(p) {
   try { return await fsp.realpath(p); } catch { return path.resolve(p); }
 }
@@ -57,7 +48,6 @@ async function safeMove(src, dest) {
     await fsp.rename(src, dest);
   } catch (e) {
     if (e.code === 'EXDEV') {
-      // Cross-device move: copy then unlink.
       await fsp.copyFile(src, dest);
       await fsp.unlink(src);
     } else {
@@ -94,7 +84,7 @@ function ffprobeDate(ffprobePath, file) {
           const d = new Date(raw);
           if (!Number.isNaN(d.getTime())) return resolve(d);
         }
-      } catch { /* ignore */ }
+      } catch {}
       resolve(null);
     });
   });
@@ -110,8 +100,7 @@ async function getCaptureDate(ffprobePath, file, type) {
       const d = await ffprobeDate(ffprobePath, file);
       if (d) return d;
     }
-  } catch { /* fall through */ }
-  // Fallback: file modified time.
+  } catch {}
   try {
     const st = await fsp.stat(file);
     return st.mtime;
@@ -120,10 +109,6 @@ async function getCaptureDate(ffprobePath, file, type) {
   }
 }
 
-// Decode an image to a JPEG data URL via the macOS `sips` tool, resized so its
-// longest side is <= maxDim. This is how we render HEIC/HEIF, which Chromium can't
-// decode and which Electron's nativeImage returns only a generic file icon for.
-// Returns a data URL string, or null if sips is unavailable/fails (e.g. non-macOS).
 let _previewCounter = 0;
 async function sipsDataUrl(src, maxDim) {
   const out = path.join(os.tmpdir(), `tmg-prev-${process.pid}-${_previewCounter++}.jpg`);
@@ -142,33 +127,26 @@ async function sipsDataUrl(src, maxDim) {
   } catch {
     return null;
   } finally {
-    await fsp.rm(out, { force: true }).catch(() => { /* ignore */ });
+    await fsp.rm(out, { force: true }).catch(() => {});
   }
 }
 
-// Target subfolder (relative to the gallery root) for a kept item.
 function galleryRelDir(date, type) {
   const year = String(date.getFullYear());
   const month = String(date.getMonth() + 1).padStart(2, '0');
   return path.join(year, month, type);
 }
 
-// True if `child` is the same as, or located somewhere inside, `parent`.
-// Both args should be absolute (ideally realpath-resolved) paths.
 function isInside(parent, child) {
   if (parent === child) return true;
   const rel = path.relative(parent, child);
   return rel !== '' && !rel.startsWith('..' + path.sep) && rel !== '..' && !path.isAbsolute(rel);
 }
 
-// True if the two directory trees overlap (one contains the other, or they're equal).
 function overlaps(a, b) {
   return isInside(a, b) || isInside(b, a);
 }
 
-// Safety guard core: the gallery/staging output dirs must not overlap the source
-// tree. All three args must be absolute, realpath-resolved paths.
-// Returns a human-readable reason string if unsafe, else null.
 function conflictReason(source, gallery, staging) {
   if (overlaps(source, gallery) || overlaps(source, staging)) {
     return (
@@ -181,21 +159,13 @@ function conflictReason(source, gallery, staging) {
   return null;
 }
 
-// Convenience pure check from raw (already-resolved) source/dest paths.
 function destinationConflict(source, dest) {
   return conflictReason(source, path.join(dest, GALLERY_NAME), path.join(dest, STAGING_NAME));
 }
 
-// Resolve everything to real on-disk paths (following any existing symlinks for the
-// gallery/staging dirs), refuse unsafe destinations, then create the gallery.
-// Returns {ok:true, source, dest, galleryRoot, stagingDir} or {ok:false, reason}.
-// This is the single guarded entry point used by the IPC handler — kept here so it
-// can be unit-tested without Electron.
 async function prepareSession(source, dest) {
   const realSource = await realpathSafe(source);
   const realDest = await realpathSafe(dest);
-  // realpathSafe resolves a pre-existing symlink to its target; for a not-yet-created
-  // dir it returns the lexical path. Either way we check the REAL location.
   const galleryRoot = await realpathSafe(path.join(realDest, GALLERY_NAME));
   const stagingDir = await realpathSafe(path.join(realDest, STAGING_NAME));
 
@@ -210,8 +180,6 @@ async function prepareSession(source, dest) {
   return { ok: true, source: realSource, dest: realDest, galleryRoot, stagingDir };
 }
 
-// Files currently sitting in staging (flat list of absolute paths). Used to adopt
-// discards left over from a session that was closed before flushing to the bin.
 async function listStaging(stagingDir) {
   try {
     const entries = await fsp.readdir(stagingDir, { withFileTypes: true });
@@ -226,9 +194,6 @@ async function readProgress(galleryRoot) {
   } catch { return { kept: 0, discarded: 0 }; }
 }
 
-// Atomic write: write to a unique temp file then rename over the target, so a crash
-// mid-write can never leave a truncated/corrupt progress file, and even concurrent
-// writers (each with its own temp) end up with one complete file — last rename wins.
 let _tmpCounter = 0;
 async function writeProgress(galleryRoot, data) {
   if (!galleryRoot) return;
@@ -238,13 +203,10 @@ async function writeProgress(galleryRoot, data) {
     await fsp.writeFile(tmp, JSON.stringify(data));
     await fsp.rename(tmp, target);
   } catch {
-    try { await fsp.rm(tmp, { force: true }); } catch { /* ignore */ }
+    try { await fsp.rm(tmp, { force: true }); } catch {}
   }
 }
 
-// Recursively collect supported media. `onProgress(found)` is called periodically
-// so the UI can show live counts during a long walk. Symlinked dirs/files are not
-// followed (isDirectory()/isFile() are false for symlinks), avoiding cycles.
 async function scan(root, onProgress) {
   const out = [];
   async function walk(dir) {
@@ -259,7 +221,7 @@ async function scan(root, onProgress) {
         const type = typeOf(e.name);
         if (type) {
           let size = 0;
-          try { size = (await fsp.stat(full)).size; } catch { /* ignore */ }
+          try { size = (await fsp.stat(full)).size; } catch {}
           out.push({ path: full, name: e.name, type, size });
           if (onProgress && out.length % 500 === 0) onProgress(out.length);
         }

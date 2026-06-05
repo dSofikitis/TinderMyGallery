@@ -1,6 +1,5 @@
 'use strict';
 
-// ---------- element refs ----------
 const startScreen = document.getElementById('startScreen');
 const startBtn = document.getElementById('startBtn');
 const loading = document.getElementById('loading');
@@ -25,24 +24,23 @@ const blockedMsg = document.getElementById('blockedMsg');
 const blockedResumeBtn = document.getElementById('blockedResumeBtn');
 const blockedFinishBtn = document.getElementById('blockedFinishBtn');
 
-// ---------- state ----------
 let items = [];
 let index = 0;
-const history = [];        // stack of {action, original, current, item}
-const recent = [];         // recently kept items, most-recent-first
+const history = [];
+const recent = [];
 let keptCount = 0;
 let discardedCount = 0;
-let priorKept = 0;         // carried over from a previous run on this gallery
+let priorKept = 0;
 let priorDiscarded = 0;
 let busy = false;
 let active = false;
-let failedCount = 0;        // files we couldn't move (left in place, skipped)
-let consecutiveFails = 0;   // run of back-to-back failures → likely systemic
+let failedCount = 0;
+let consecutiveFails = 0;
 const FAIL_STOP_THRESHOLD = 5;
 let toastTimer = null;
-const decisionTimes = [];  // performance.now() of recent decisions, for ETA
+const decisionTimes = [];
 
-const MAX_HISTORY = 200;  // bound undo depth so the history array can't grow without limit
+const MAX_HISTORY = 200;
 const TYPE_LABEL = { pics: 'PHOTO', vids: 'VIDEO', audio: 'AUDIO' };
 const TYPE_GLYPH = { pics: '🖼', vids: '▶', audio: '♪' };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -64,18 +62,16 @@ function formatDuration(ms) {
   return h + 'h ' + (m % 60) + 'm';
 }
 
-// ---------- flow ----------
 startBtn.addEventListener('click', startFlow);
 
 async function startFlow() {
   const source = await window.api.pickFolder('Select the folder to sort (scanned recursively)');
   if (!source) return;
 
-  // Pick a destination, re-prompting until it's a safe one (not inside the source tree).
   let init;
   while (true) {
     const dest = await window.api.pickFolder('Select where to create the MyGallery folder');
-    if (!dest) return; // cancelled
+    if (!dest) return;
     try {
       init = await window.api.initSession(source, dest);
     } catch (err) {
@@ -154,8 +150,7 @@ function beginSwiping() {
 }
 
 function resetToStart() {
-  // Discard the just-started (un-swiped) session in the main process too.
-  try { window.api.abortSession(); } catch { /* ignore */ }
+  try { window.api.abortSession(); } catch {}
   summaryScreen.classList.add('hidden');
   appEl.classList.add('hidden');
   doneScreen.classList.add('hidden');
@@ -172,7 +167,6 @@ function next() {
   filenameEl.textContent = items[index].name;
 }
 
-// ---------- card ----------
 function renderCard(item) {
   cardArea.innerHTML = '';
   const card = document.createElement('div');
@@ -189,7 +183,6 @@ function renderCard(item) {
     media.draggable = false;
     media.onerror = () => markCardUnreadable(card);
     if (/\.(heic|heif)$/i.test(item.name)) {
-      // Chromium can't decode HEIC/HEIF — get an OS-decoded preview from main.
       window.api.preview(item.path)
         .then((url) => {
           if (!media.isConnected) return;
@@ -220,7 +213,6 @@ function renderCard(item) {
   attachDrag(card);
 }
 
-// Shown when a file can't be previewed (missing, or an undownloaded iCloud item).
 function markCardUnreadable(card) {
   if (!card || card.querySelector('.card-error')) return;
   card.classList.add('unreadable');
@@ -235,7 +227,6 @@ function attachDrag(card) {
   let startX = 0, startY = 0, dx = 0, dy = 0;
 
   card.addEventListener('pointerdown', (e) => {
-    // Let media controls work normally; drag only from the rest of the card.
     if (['VIDEO', 'AUDIO', 'INPUT', 'BUTTON'].includes(e.target.tagName)) return;
     if (busy) return;
     dragging = true;
@@ -266,7 +257,6 @@ function attachDrag(card) {
   card.addEventListener('pointercancel', end);
 }
 
-// ---------- decisions ----------
 async function commit(action) {
   if (busy || index >= items.length) return;
   busy = true;
@@ -293,11 +283,9 @@ async function commit(action) {
       discardedCount++;
     }
     history.push(entry);
-    if (history.length > MAX_HISTORY) history.shift(); // keep memory bounded at scale
+    if (history.length > MAX_HISTORY) history.shift();
     consecutiveFails = 0;
   } catch (err) {
-    // Couldn't move this file (e.g. permission denied, or an iCloud file that isn't
-    // downloaded). Don't trap the user on it — leave it in place and skip past it.
     busy = false;
     failedCount++;
     consecutiveFails++;
@@ -349,7 +337,7 @@ function etaText() {
   const remaining = items.length - index;
   if (decisionTimes.length < 2 || remaining <= 0) return '';
   const span = decisionTimes[decisionTimes.length - 1] - decisionTimes[0];
-  if (span <= 0) return ''; // identical timestamps → not enough signal yet
+  if (span <= 0) return '';
   const per = span / (decisionTimes.length - 1);
   return '~' + formatDuration(per * remaining) + ' left';
 }
@@ -364,7 +352,6 @@ function updateCounter() {
     `   ·   ${remaining.toLocaleString()} left${eta ? '   ·   ' + eta : ''}`;
 }
 
-// Brief, non-blocking notice (so a single bad file doesn't pop a modal).
 function toast(msg) {
   toastEl.textContent = msg;
   toastEl.classList.remove('hidden');
@@ -372,7 +359,6 @@ function toast(msg) {
   toastTimer = setTimeout(() => toastEl.classList.add('hidden'), 2800);
 }
 
-// Many failures in a row → likely a systemic permission / iCloud issue. Stop and explain.
 function showBlocked(err) {
   active = false;
   busy = false;
@@ -399,18 +385,15 @@ function resumeFromBlocked() {
   next();
 }
 
-// ---------- recently-kept grid ----------
 async function addToGrid(item) {
   recent.unshift(item);
   if (recent.length > 48) recent.length = 48;
   renderGrid();
-  // Fetch a light OS thumbnail (images & videos); audio stays as the ♪ glyph.
   if (item.type !== 'audio' && !item.thumb) {
     try {
       const t = await window.api.thumbnail(item.path);
-      // Only repaint if this item is still shown — it may have been undone meanwhile.
       if (t) { item.thumb = t; if (recent.includes(item)) renderGrid(); }
-    } catch { /* keep the glyph fallback */ }
+    } catch {}
   }
 }
 function removeFromGrid(currentPath) {
@@ -443,9 +426,8 @@ function renderGrid() {
   }
 }
 
-// ---------- finishing ----------
 function showDone() {
-  active = true; // keep Ctrl+Z (undo) available from the done screen
+  active = true;
   appEl.classList.add('hidden');
   doneFinishBtn.classList.remove('hidden');
   doneSummary.textContent =
@@ -476,7 +458,6 @@ async function finalize() {
   finishBtn.disabled = true;
 }
 
-// ---------- wiring ----------
 summaryStartBtn.addEventListener('click', beginSwiping);
 summaryCancelBtn.addEventListener('click', resetToStart);
 blockedResumeBtn.addEventListener('click', resumeFromBlocked);

@@ -24,7 +24,6 @@ html, body {
 
 .hidden { display: none !important; }
 
-/* ---------- overlays ---------- */
 .overlay {
   position: fixed;
   inset: 0;
@@ -79,7 +78,6 @@ button { font: inherit; cursor: pointer; border: none; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ---------- layout ---------- */
 #app { display: flex; height: 100vh; }
 
 #sidebar {
@@ -114,7 +112,6 @@ button { font: inherit; cursor: pointer; border: none; }
 .thumb.empty { background: #20232b; border: 1px dashed #2e333d; }
 .thumb-audio { font-size: 24px; color: var(--accent); }
 
-/* ---------- stage ---------- */
 #stage {
   flex: 1;
   display: flex;
@@ -227,7 +224,6 @@ button { font: inherit; cursor: pointer; border: none; }
 
 #hintbar { margin-top: 12px; color: #5a606d; font-size: 12px; }
 
-/* ---------- pre-scan summary ---------- */
 .row { display: flex; gap: 12px; justify-content: center; margin-top: 18px; }
 .breakdown {
   margin: 18px 0 6px;
@@ -249,13 +245,10 @@ button { font: inherit; cursor: pointer; border: none; }
 .brow.btot { border-top: 1px solid #353a45; margin-top: 4px; padding-top: 11px; font-weight: 600; }
 .brow.btot span:nth-child(3) { color: var(--text); }
 
-/* recently-kept grid: glyph fallback before/without a thumbnail */
 .thumb-glyph { font-size: 26px; color: var(--muted); }
 
-/* multi-line message panels (blocked screen) */
 .preline { white-space: pre-line; text-align: left; }
 
-/* transient toast notice */
 .toast {
   position: fixed;
   left: 50%;
@@ -275,10 +268,8 @@ button { font: inherit; cursor: pointer; border: none; }
   z-index: 20;
 }
 
-/* broken/empty media still needs a box to show the note in */
 .card.unreadable { min-width: 460px; min-height: 320px; }
 
-/* "can't preview" note overlaid on the card */
 .card-error {
   position: absolute;
   inset: 0;

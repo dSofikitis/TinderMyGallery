@@ -1,8 +1,5 @@
 'use strict';
 
-// Functional test of the real file-operation logic in src/lib/media.js.
-// Runs against a throwaway temp directory. No Electron, no Recycle Bin side effects.
-
 const path = require('path');
 const fs = require('fs');
 const fsp = require('fs/promises');
@@ -31,16 +28,15 @@ async function main() {
   const gallery = path.join(root, 'out', 'MyGallery');
   const staging = path.join(root, 'out', '.TMG-staging');
 
-  // ---- build a source tree (dates chosen via mtime; no real metadata) ----
-  const dJul = new Date(2021, 6, 15, 12, 0, 0); // 2021-07
-  const dMar = new Date(2022, 2, 2, 9, 0, 0);   // 2022-03
-  const dDec = new Date(2020, 11, 25, 8, 0, 0); // 2020-12
+  const dJul = new Date(2021, 6, 15, 12, 0, 0);
+  const dMar = new Date(2022, 2, 2, 9, 0, 0);
+  const dDec = new Date(2020, 11, 25, 8, 0, 0);
 
   await writeFile(path.join(src, 'a.jpg'), 'fake', dJul);
-  await writeFile(path.join(src, 'sub', 'b.MP4'), 'fake', dMar);      // uppercase ext
+  await writeFile(path.join(src, 'sub', 'b.MP4'), 'fake', dMar);
   await writeFile(path.join(src, 'sub', 'deep', 'c.wav'), 'fake', dDec);
-  await writeFile(path.join(src, 'notes.txt'), 'ignore me');           // non-media
-  await writeFile(path.join(src, 'MyGallery', 'old.jpg'), 'fake');     // must be skipped
+  await writeFile(path.join(src, 'notes.txt'), 'ignore me');
+  await writeFile(path.join(src, 'MyGallery', 'old.jpg'), 'fake');
 
   console.log('scan():');
   const items = await media.scan(src);
@@ -61,7 +57,6 @@ async function main() {
   if (process.platform === 'darwin') {
     console.log('HEIC decode via sips:');
     const { spawnSync } = require('child_process');
-    // a real 2x2 PNG, converted to HEIC with sips, then decoded back by sipsDataUrl
     const pngSrc = path.join(root, 'heic-src.png');
     fs.writeFileSync(pngSrc, Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEUlEQVR4nGP8z8Dwn4EIwAgAJAUDAH2FmrIAAAAASUVORK5CYII=',
@@ -124,41 +119,31 @@ async function main() {
   await writeFile(victim, 'bye', dJul);
   const staged = await media.moveInto(victim, staging, 'trashme.png');
   check('discard moves file into staging', fs.existsSync(staged) && !fs.existsSync(victim));
-  // undo a keep: move t2 back to its original source path
   await fsp.mkdir(path.dirname(c2), { recursive: true });
   await media.safeMove(t2, c2);
   check('undo restores kept file to original path', fs.existsSync(c2) && !fs.existsSync(t2));
-  // undo a discard: move staged file back
   await media.safeMove(staged, victim);
   check('undo restores discarded file from staging', fs.existsSync(victim) && !fs.existsSync(staged));
 
   console.log('destination-conflict guard:');
   const G = media.GALLERY_NAME;
-  // dest === source  -> output would be source/MyGallery  -> DENY
   check('denies dest equal to source',
     media.destinationConflict('/a/gallery', '/a/gallery') !== null);
-  // dest inside source -> DENY
   check('denies dest nested inside source',
     media.destinationConflict('/a/gallery', '/a/gallery/sub') !== null);
-  // source literally named MyGallery, dest is its parent -> gallery === source -> DENY
   check('denies when source is the MyGallery one level under dest',
     media.destinationConflict('/a/' + G, '/a') !== null);
-  // dest is a sibling -> ALLOW
   check('allows sibling destination',
     media.destinationConflict('/a/gallery', '/a/export') === null);
-  // dest is the parent and source is a normal name -> output is a sibling of source -> ALLOW
   check('allows parent destination with normal source name',
     media.destinationConflict('/a/gallery/photos', '/a/gallery') === null);
-  // a path that is a string-prefix but NOT a path-parent must not false-positive
   check('does not treat string-prefix siblings as nested',
     media.destinationConflict('/a/gallery', '/a/gallery-export') === null);
-  // isInside sanity
   check('isInside: same path', media.isInside('/x/y', '/x/y') === true);
   check('isInside: real child', media.isInside('/x/y', '/x/y/z') === true);
   check('isInside: prefix-but-not-child', media.isInside('/x/y', '/x/yy') === false);
   check('isInside: parent is not inside child', media.isInside('/x/y/z', '/x/y') === false);
 
-  // End-to-end against the real filesystem: a real nested dest must be refused.
   const realSrc = await fsp.realpath(src);
   check('real nested dest produces a conflict reason',
     media.destinationConflict(realSrc, path.join(realSrc, 'export')) !== null);
@@ -177,29 +162,24 @@ async function main() {
   const insidePrep = await media.prepareSession(psSource, psSource);
   check('prepareSession denies dest === source', insidePrep.ok === false && !!insidePrep.reason);
 
-  // SYMLINK BYPASS (review finding #1): dest/MyGallery is a symlink into source.
-  // String comparison would miss it; realpath resolution must catch it.
   const symDest = path.join(ps, 'dest-sym');
   await fsp.mkdir(symDest, { recursive: true });
   await fsp.symlink(psSource, path.join(symDest, media.GALLERY_NAME));
   const symPrep = await media.prepareSession(psSource, symDest);
   check('prepareSession denies a MyGallery symlink pointing into source', symPrep.ok === false);
 
-  // Same attack via the staging dir symlink.
   const symStgDest = path.join(ps, 'dest-sym-stg');
   await fsp.mkdir(symStgDest, { recursive: true });
   await fsp.symlink(psSource, path.join(symStgDest, media.STAGING_NAME));
   const symStgPrep = await media.prepareSession(psSource, symStgDest);
   check('prepareSession denies a .TMG-staging symlink pointing into source', symStgPrep.ok === false);
 
-  // MyGallery already exists as a regular file -> mkdir fails -> ok:false (not a throw).
   const fileGalDest = path.join(ps, 'dest-filegal');
   await fsp.mkdir(fileGalDest, { recursive: true });
   await writeFile(path.join(fileGalDest, media.GALLERY_NAME), 'i am a file, not a dir');
   const fileGalPrep = await media.prepareSession(psSource, fileGalDest);
   check('prepareSession returns ok:false when MyGallery exists as a file', fileGalPrep.ok === false);
 
-  // mkdir failure (review finding #3): read-only destination must yield ok:false, not throw.
   const isRoot = typeof process.getuid === 'function' && process.getuid() === 0;
   if (!isRoot) {
     const roDest = path.join(ps, 'readonly');
@@ -208,7 +188,7 @@ async function main() {
     const roPrep = await media.prepareSession(psSource, roDest);
     check('prepareSession returns ok:false when gallery mkdir fails (read-only dest)',
       roPrep.ok === false && !!roPrep.reason);
-    await fsp.chmod(roDest, 0o755); // restore so cleanup can remove it
+    await fsp.chmod(roDest, 0o755);
   } else {
     console.log('  ~ skipped read-only mkdir test (running as root)');
   }
@@ -229,7 +209,6 @@ async function main() {
   check('readProgress defaults to zeros when missing',
     (await media.readProgress(path.join(root, 'nope'))).kept === 0);
 
-  // Atomic writes: even 30 concurrent writers must leave a valid (never corrupt) file.
   await Promise.all(
     Array.from({ length: 30 }, (_, i) => media.writeProgress(okPrep.galleryRoot, { kept: i, discarded: 0 })),
   );
@@ -247,7 +226,6 @@ async function main() {
   check('scan reports a real (>0) size', scanned[0].size > 0);
   check('scan invokes onProgress (at least the final tick)', progressCalls >= 1);
 
-  // cleanup
   await fsp.rm(root, { recursive: true, force: true });
   console.log(`\nALL ${passed} CHECKS PASSED`);
 }
