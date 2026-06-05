@@ -1,4 +1,4 @@
-name: Build MacOS, Windows & Linux desktop binaries
+name: Build Windows desktop binary
 
 on:
   workflow_dispatch:
@@ -11,43 +11,30 @@ permissions:
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            script: build:mac
-          - os: windows-latest
-            script: build:win
-          - os: ubuntu-latest
-            script: build:linux
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
       - name: Build
-        run: npm run ${{ matrix.script }}
+        run: npm run build:win -- --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.os }}
+          name: windows
           path: |
-            dist/*.dmg
-            dist/*.zip
             dist/*.exe
-            dist/*.AppImage
-            dist/*.deb
+            dist/*.zip
           if-no-files-found: ignore
 
       - name: Attach to Release (on tag)
@@ -55,9 +42,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/*.dmg
-            dist/*.zip
             dist/*.exe
-            dist/*.AppImage
-            dist/*.deb
+            dist/*.zip
           fail_on_unmatched_files: false

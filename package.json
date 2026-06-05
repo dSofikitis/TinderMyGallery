@@ -12,7 +12,7 @@
     "build:win": "electron-builder --win",
     "build:linux": "electron-builder --linux"
   },
-  "author": "Dimitrios Sofikitis / dSofikitis",
+  "author": "Dimitrios Sofikitis / dSofikitis <dSofikitis@users.noreply.github.com>",
   "license": "MIT",
   "dependencies": {
     "exifr": "^7.1.3",
